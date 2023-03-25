@@ -1,0 +1,12 @@
+{
+  "name": "chess-board",
+  "version": "0.0.1",
+  "description": "",
+  "source": "index.html",
+  "scripts": {
+    "start": "parcel serve index.html --open --dist-dir build",
+    "build": "parcel build index.html --dist-dir build"
+  },
+  "author": "",
+  "license": "ISC"
+}
