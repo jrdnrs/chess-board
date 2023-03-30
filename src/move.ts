@@ -21,11 +21,11 @@ export const enum Castle {
 }
 
 export const enum Promotion {
-    None,
     Rook,
     Bishop,
     Knight,
     Queen,
+    None,
 }
 
 export const enum EnPassant {
@@ -84,7 +84,7 @@ export class Move {
         let promotion: Promotion;
         if ((flags & PROMOTION_MASK) > 0) {
             piece = PieceType.Pawn;
-            promotion = 1 + (bytes & 0xff);
+            promotion = bytes & 0xff;
         } else {
             piece = bytes & 0xff;
             promotion = Promotion.None;
@@ -142,8 +142,8 @@ export class Move {
     toBytes(): number {
         let piece: number;
         let promotionBits: number;
-        if (this.promotion > 0) {
-            piece = this.promotion - 1;
+        if (this.promotion !== Promotion.None) {
+            piece = this.promotion;
             promotionBits = PROMOTION;
         } else {
             piece = this.piece;

@@ -21,6 +21,7 @@ export class Overlay {
         for (const el of this.squares) {
             el.classList.value = "square";
         }
+        this.element.style.zIndex = "";
     }
 
     clearLegalMoveHighlights() {
@@ -42,23 +43,29 @@ export class Overlay {
     }
 
     hidePromotionSelection(square: Position) {
+        let squares: number[];
+        let color: string;
+
+        if (square.rank === 7) {
+            squares = [square.index, square.index - 8, square.index - 16, square.index - 24];
+            color = "white";
+        } else if (square.rank === 0) {
+            squares = [square.index, square.index + 8, square.index + 16, square.index + 24];
+            color = "black";
+        } else {
+            throw new Error(`Invalid promotion on square '${square}'`);
+        }
+
         this.element.style.zIndex = "";
 
         for (const el of this.squares) {
             el.classList.remove("dim");
         }
 
-        if (square.rank === 7) {
-            this.squares[square.index].classList.remove("white-queen", "promote");
-            this.squares[square.index - 8].classList.remove("white-knight", "promote");
-            this.squares[square.index - 16].classList.remove("white-rook", "promote");
-            this.squares[square.index - 24].classList.remove("white-bishop", "promote");
-        } else if (square.rank === 0) {
-            this.squares[square.index].classList.remove("black-queen", "promote");
-            this.squares[square.index + 8].classList.remove("black-knight", "promote");
-            this.squares[square.index + 16].classList.remove("black-rook", "promote");
-            this.squares[square.index + 24].classList.remove("black-bishop", "promote");
-        }
+        this.squares[squares[0]].classList.add(color + "-queen", "promote");
+        this.squares[squares[1]].classList.add(color + "-knight", "promote");
+        this.squares[squares[2]].classList.add(color + "-rook", "promote");
+        this.squares[squares[3]].classList.add(color + "-bishop", "promote");
     }
 
     highlightLegalMoves(start: Position, moves: Move[]) {
@@ -81,23 +88,31 @@ export class Overlay {
         this.squares[square.index].classList.add("check");
     }
 
-    showPromotionSelection(square: Position) {
+    showPromotionSelection(square: Position): number[] {
+        let squares: number[];
+        let color: string;
+
+        if (square.rank === 7) {
+            squares = [square.index, square.index - 8, square.index - 16, square.index - 24];
+            color = "white";
+        } else if (square.rank === 0) {
+            squares = [square.index, square.index + 8, square.index + 16, square.index + 24];
+            color = "black";
+        } else {
+            throw new Error(`Invalid promotion on square '${square}'`);
+        }
+
         this.element.style.zIndex = "4";
 
         for (const el of this.squares) {
             el.classList.add("dim");
         }
 
-        if (square.rank === 7) {
-            this.squares[square.index].classList.add("white-queen", "promote");
-            this.squares[square.index - 8].classList.add("white-knight", "promote");
-            this.squares[square.index - 16].classList.add("white-rook", "promote");
-            this.squares[square.index - 24].classList.add("white-bishop", "promote");
-        } else if (square.rank === 0) {
-            this.squares[square.index].classList.add("black-queen", "promote");
-            this.squares[square.index + 8].classList.add("black-knight", "promote");
-            this.squares[square.index + 16].classList.add("black-rook", "promote");
-            this.squares[square.index + 24].classList.add("black-bishop", "promote");
-        }
+        this.squares[squares[0]].classList.add(color + "-queen", "promote");
+        this.squares[squares[1]].classList.add(color + "-knight", "promote");
+        this.squares[squares[2]].classList.add(color + "-rook", "promote");
+        this.squares[squares[3]].classList.add(color + "-bishop", "promote");
+
+        return squares;
     }
 }

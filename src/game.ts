@@ -5,19 +5,26 @@ import { Color, PieceType } from "./piece";
 
 const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+const enum Player {
+    Engine,
+    Human,
+}
+
 export class Game {
     element: HTMLElement;
     board: Board;
     engine: Worker;
-    // white: Player;
-    // black: Player;
-    dragging: boolean;
+    legalMoves: Move[][];
+    interacting: boolean;
+    players: Player[];
 
     constructor(container: HTMLElement) {
         this.element = Game.createElement();
         this.board = new Board(this.element);
         this.engine = new Worker(new URL("engine.ts", import.meta.url), { type: "module" });
-        this.dragging = false;
+        this.legalMoves = Array.from(new Array(64), () => []);
+        this.interacting = false;
+        this.players = [];
 
         this.board.element.addEventListener("contextmenu", (ev) => {
             ev.preventDefault();
@@ -29,7 +36,9 @@ export class Game {
             (e) => {
                 const msg = e.data as Message;
                 if (msg.signal === Signal.Ready) {
-                    this.init();
+                    this.board.element.addEventListener("mousedown", (ev) => this.handlePlayerInteraction(ev), {
+                        passive: true,
+                    });
                     container.appendChild(this.element);
                 }
             },
@@ -43,67 +52,181 @@ export class Game {
         return el;
     }
 
-    init() {
-        this.loadFEN(STARTING_FEN);
+    // async reset() {
+    //     this.board.reset();
+    //     this.interacting = false;
+    //     for (let i = 0; i < 64; i++) {
+    //         this.legalMoves[i].length = 0;
+    //     }
 
-        this.getLegalMoves().then((moves) => {
-            this.board.updateLegalMoves(moves);
-        });
+    //     await this.contactEngine(Signal.Reset);
+    //     this.start();
+    // }
 
-        this.board.element.addEventListener("mousedown", (ev) => {
-            if (ev.button !== 0) return;
-            if (this.dragging) return;
-            const square = this.board.getSquareAtPoint(ev.clientX, ev.clientY);
-            if (square === undefined) return;
-            if (this.board.pieces[square.index] === undefined) return;
+    async start(playerOne: Player, playerTwo: Player) {
+        if (Math.random() < 0.5) {
+            this.players = [playerOne, playerTwo];
+            this.board.showOrientation(Color.White);
+        } else {
+            this.players = [playerTwo, playerOne];
+            this.board.showOrientation(Color.Black);
+        }
 
-            const moveController = this.board.pickUpPiece(square, ev.clientX, ev.clientY);
-            this.dragging = true;
+        await this.loadFEN(STARTING_FEN);
+        await this.updateLegalMoves();
 
+        if (this.players[this.board.activeColor] === Player.Engine) {
+            await this.handleEngineInteraction();
+        }
+    }
+
+    async loadFEN(fen: string) {
+        this.board.loadFEN(fen);
+        await this.contactEngine(Signal.LoadFEN, fen);
+    }
+
+    async handleEngineInteraction() {
+        this.interacting = true;
+
+        const start = Date.now();
+        const move = await this.getEngineMove();
+        const elapsed = Date.now() - start;
+
+        const delay = 500 + Math.random() * 1000;
+        if (elapsed < delay) {
+            await new Promise((resolve) => {
+                setTimeout(resolve, delay - elapsed);
+            });
+        }
+
+        if (move === undefined) {
+            this.interacting = false;
+            return;
+        }
+        await this.makeMove(move);
+        this.interacting = false;
+    }
+
+    async getEngineMove(): Promise<Move | undefined> {
+        // TODO: soon will use time-based cutoff instead of specific depth...
+        return this.getBestMove(4);
+    }
+
+    async handlePlayerInteraction(ev: MouseEvent) {
+        if (ev.button !== 0 || this.interacting) return;
+
+        const move = await this.getPlayerMove(ev.clientX, ev.clientY);
+        if (move === undefined) return;
+
+        // TODO: consider using this event listener to handle promotion selection too,
+        //       would require caching the promotion type move until subsequent click
+        if (move.promotion !== Promotion.None) {
+            move.promotion = await this.getPlayerPromotionSelection(move.to);
+        }
+
+        await this.makeMove(move);
+    }
+
+    async getPlayerMove(x: number, y: number): Promise<Move | undefined> {
+        const square = this.board.getSquareAtPoint(x, y);
+        if (
+            square === undefined ||
+            !this.board.hasPiece(square) ||
+            this.board.getPiece(square).color !== this.board.activeColor
+        )
+            return;
+
+        this.interacting = true;
+        this.board.pickUpPiece(square, x, y);
+        this.board.overlay.highlightLegalMoves(square, this.legalMoves[square.index]);
+
+        return new Promise((resolve) => {
             document.addEventListener(
                 "mouseup",
-                async (ev) => {
-                    moveController.abort();
-                    this.dragging = false;
-                    const move = this.board.dropPiece(square, ev.clientX, ev.clientY);
-                    if (move === undefined) return;
+                (ev) => {
+                    const droppedSquare = this.board.dropPiece(ev.clientX, ev.clientY);
+                    let move: Move | undefined = undefined;
 
-                    // show promotion selection
-                    if (move.promotion !== Promotion.None) {
-                        this.board.overlay.showPromotionSelection(move.to);
-                        return
+                    if (droppedSquare !== undefined) {
+                        move = this.legalMoves[square.index].find((lm) => lm.to.index === droppedSquare.index);
                     }
 
-                    this.board.movePiece(move);
-                    await this.makeMove(move);
-                    this.board.updateLegalMoves(await this.getLegalMoves());
-                    if (await this.isInCheck()) {
-                        for (let i = 0; i < 64; i++) {
-                            if (
-                                this.board.pieces[i]?.type === PieceType.King &&
-                                this.board.pieces[i]?.color === this.board.activeColor
-                            ) {
-                                this.board.overlay.highlightCheck(Position.fromIndex(i));
-                                break;
-                            }
-                        }
+                    if (move === undefined) {
+                        // move is invalid so reset piece position
+                        this.board.placePiece(this.board.getPiece(square), square);
                     }
+
+                    this.interacting = false;
+                    resolve(move);
                 },
-                { once: true }
+                { passive: true, once: true }
             );
         });
     }
 
-    loadFEN(fen: string) {
-        this.board.loadFEN(fen);
-        this.contactEngine(Signal.LoadFEN, fen);
+    async getPlayerPromotionSelection(square: Position): Promise<Promotion> {
+        const selectSquares = this.board.overlay.showPromotionSelection(square);
+        this.interacting = true;
+
+        const controller = new AbortController();
+        return new Promise((resolve) => {
+            this.board.element.addEventListener(
+                "mousedown",
+                (ev) => {
+                    const selectedSquare = this.board.getSquareAtPoint(ev.clientX, ev.clientY);
+                    if (selectedSquare === undefined) return;
+
+                    const selectedIndex = selectSquares.findIndex(
+                        (squareIndex) => squareIndex === selectedSquare.index
+                    );
+                    if (selectedIndex === -1) return;
+
+                    // promotion selection shown is in different order to enum, so indices don't match :(
+                    let promotion: Promotion;
+                    switch (selectedIndex) {
+                        case 0:
+                            promotion = Promotion.Queen;
+                            break;
+                        case 1:
+                            promotion = Promotion.Knight;
+                            break;
+                        case 2:
+                            promotion = Promotion.Rook;
+                            break;
+                        case 3:
+                            promotion = Promotion.Bishop;
+                            break;
+
+                        default:
+                            // unreachable
+                            throw new Error("Invalid promotion selection index");
+                    }
+
+                    this.interacting = false;
+                    this.board.overlay.hidePromotionSelection(square);
+                    controller.abort();
+                    resolve(promotion);
+                },
+                { passive: true, signal: controller.signal }
+            );
+        });
     }
 
-    async getPlayerMove() {
-        
+    async updateLegalMoves(): Promise<boolean> {
+        const moves = await this.getLegalMoves();
+
+        for (let i = 0; i < 64; i++) {
+            this.legalMoves[i].length = 0;
+        }
+
+        for (const move of moves) {
+            this.legalMoves[move.from.index].push(move);
+        }
+
+        return moves.length != 0;
     }
 
-    private async contactEngine(signal: Signal, payload: any = undefined): Promise<any> {
+    private async contactEngine(signal: Signal, payload?: any): Promise<any> {
         const msg: Message = {
             signal,
             error: undefined,
@@ -115,8 +238,8 @@ export class Game {
         return new Promise((resolve, reject) => {
             this.engine.addEventListener(
                 "message",
-                (e) => {
-                    const msg = e.data as Message;
+                (ev) => {
+                    const msg = ev.data as Message;
                     if (msg.signal === signal) {
                         if (msg.error !== undefined) {
                             reject(msg.error);
@@ -126,7 +249,7 @@ export class Game {
                         controller.abort();
                     }
                 },
-                { signal: controller.signal }
+                { passive: true, signal: controller.signal }
             );
         });
     }
@@ -140,8 +263,8 @@ export class Game {
         return moves;
     }
 
-    async getBestMove(): Promise<Move | undefined> {
-        const moveBytes = (await this.contactEngine(Signal.GetBestMove, 5)) as number | undefined;
+    async getBestMove(depth: number): Promise<Move | undefined> {
+        const moveBytes = (await this.contactEngine(Signal.GetBestMove, depth)) as number | undefined;
         if (moveBytes === undefined) {
             return undefined;
         }
@@ -158,6 +281,34 @@ export class Game {
 
     async makeMove(move: Move) {
         const moveBytes = move.toBytes();
-        (await this.contactEngine(Signal.MakeMove, moveBytes)) as Promise<boolean>;
+        await this.contactEngine(Signal.MakeMove, moveBytes);
+        this.board.makeMove(move);
+
+        const movesExist = await this.updateLegalMoves();
+        const inCheck = await this.isInCheck();
+
+        if (inCheck) {
+            const kingIndex = this.board.pieces.findIndex(
+                (piece) => piece?.type === PieceType.King && piece?.color === this.board.activeColor
+            );
+            this.board.overlay.highlightCheck(Position.fromIndex(kingIndex));
+        }
+
+        if (!movesExist) {
+            const el = document.createElement("h1");
+            if (inCheck) {
+                el.innerHTML = "Checkmate";
+            } else {
+                el.innerHTML = "Draw";
+            }
+            this.element.appendChild(el);
+
+            return;
+        }
+
+
+        if (this.players[this.board.activeColor] === Player.Engine) {
+            await this.handleEngineInteraction();
+        }
     }
 }

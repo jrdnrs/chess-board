@@ -1,17 +1,25 @@
+:root {
+    --light: #f0d9b5;
+    --dark: #b58863;
+}
+
 body {
     padding: 0;
     margin: 0;
     background-color: hsl(0, 0%, 90%);
+    overflow: hidden;
 }
 
-button {
-    margin: 5px;
+#debug,
+#debug > * {
+    margin: 0.5rem;
 }
 
 /* ======== CONTAINER ======== */
 
 #game {
-    padding: 50px;
+    padding: 3rem;
+    margin: 0 auto;
 }
 
 /* ======== CHESS BOARD ======== */
@@ -25,7 +33,15 @@ button {
 #chess-board > svg {
     position: absolute;
     z-index: 0;
-    border-radius: 5px;
+    border-radius: 0.4rem;
+}
+
+#chess-board > svg > circle {
+    fill: var(--dark);
+}
+
+#chess-board > svg > path {
+    stroke: var(--light);
 }
 
 /* ======== SQUARES OVERLAY ======== */
@@ -37,6 +53,8 @@ button {
     height: 100%;
     display: flex;
     flex-wrap: wrap-reverse;
+    border-radius: 0.4rem;
+    overflow: hidden;
 }
 
 #chess-board.flipped #overlay {
@@ -68,7 +86,7 @@ button {
 
 #chess-board #overlay .square.capture {
     background-color: unset;
-    border: 7px solid rgba(32, 128, 32, 0.5);
+    border: 0.4rem solid rgba(32, 128, 32, 0.5);
     border-radius: 50%;
 }
 
@@ -99,6 +117,64 @@ button {
 
 #chess-board #overlay .square.promote:hover {
     background-color: rgb(176, 176, 176);
+}
+
+/* ======== RANK/FILE COORDS ======== */
+
+#chess-board .coords {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    position: absolute;
+    z-index: 1;
+    display: flex;
+}
+
+#chess-board .coords > div {
+    color: var(--light);
+}
+
+#chess-board.flipped .coords > div {
+    color: var(--dark);
+}
+
+#chess-board .coords > div:nth-child(2n) {
+    color: var(--dark);
+}
+
+#chess-board.flipped .coords > div:nth-child(2n) {
+    color: var(--light);
+}
+
+#chess-board #rank {
+    right: 0;
+    height: 100%;
+    padding-right: 0.2rem;
+    flex-direction: column;
+}
+
+#chess-board.flipped #rank {
+    flex-direction: column-reverse;
+}
+
+#chess-board #rank > div {
+    height: 12.5%;
+}
+
+#chess-board #file {
+    bottom: 0;
+    width: 100%;
+    padding-bottom: 0.2rem;
+    padding-left: 0.2rem;
+    flex-direction: row;
+}
+
+#chess-board.flipped #file {
+    flex-direction: row-reverse;
+}
+
+#chess-board #file > div {
+    width: 12.5%;
 }
 
 /* ======== CHESS PIECES ======== */
