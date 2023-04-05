@@ -3,16 +3,31 @@ import { Piece, PieceType } from "./piece";
 const PIECE_LETTERS = ["R", "B", "N", "Q", "", "K"];
 const PIECE_SYMBOLS = ["♖", "♗", "♘", "♕", "", "♔"];
 
-const CAPTURE = 1;
-const PROMOTION = 1 << 1;
-const KING_SIDE = 1 << 2;
-const QUEEN_SIDE = 2 << 2;
-const EN_PASSANT_MOVE = 1 << 4;
-const EN_PASSANT_CAP = 2 << 4;
+const CAP_PIECE_SHIFT = 4;
+const PROMO_PIECE_SHIFT = 8;
+const FROM_SHIFT = 12;
+const TO_SHIFT = 18;
+const EN_PASSANT_SHIFT = 24;
+const CASTLING_SHIFT = 26;
+const CAPTURE_SHIFT = 28;
+const PROMOTION_SHIFT = 29;
+
+const EN_PASSANT_MOVE = 1 << EN_PASSANT_SHIFT;
+const EN_PASSANT_CAP = 2 << EN_PASSANT_SHIFT;
+const KING_SIDE = 1 << CASTLING_SHIFT;
+const QUEEN_SIDE = 2 << CASTLING_SHIFT;
+const CAPTURE = 1 << CAPTURE_SHIFT;
+const PROMOTION = 1 << PROMOTION_SHIFT;
+
+const PIECE_MASK = 0xf;
+const CAP_PIECE_MASK = 0xf << CAP_PIECE_SHIFT;
+const PROMO_PIECE_MASK = 0xf << PROMO_PIECE_SHIFT;
+const FROM_MASK = 0x3f << FROM_SHIFT;
+const TO_MASK = 0x3f << TO_SHIFT;
+const EN_PASSANT_MASK = EN_PASSANT_MOVE | EN_PASSANT_CAP;
+const CASTLING_MASK = KING_SIDE | QUEEN_SIDE;
 const CAPTURE_MASK = CAPTURE;
 const PROMOTION_MASK = PROMOTION;
-const CASTLING_MASK = KING_SIDE | QUEEN_SIDE;
-const EN_PASSANT_MASK = EN_PASSANT_MOVE | EN_PASSANT_CAP;
 
 export const enum Castle {
     None,
@@ -25,7 +40,6 @@ export const enum Promotion {
     Bishop,
     Knight,
     Queen,
-    None,
 }
 
 export const enum EnPassant {
@@ -52,52 +66,54 @@ export class Position {
 
 export class Move {
     piece: PieceType;
+    capturedPiece: PieceType | undefined;
+    promotionPiece: Promotion | undefined;
     from: Position;
     to: Position;
-    promotion: Promotion;
-    castle: Castle;
-    capture: boolean;
     enPassant: EnPassant;
+    castle: Castle;
 
     constructor(
         piece: PieceType,
+        capturedPiece: PieceType | undefined,
+        promotionPiece: Promotion | undefined,
         from: Position,
         to: Position,
-        promotion: Promotion,
-        castle: Castle,
-        capture: boolean,
-        enPassant: EnPassant
+        enPassant: EnPassant,
+        castle: Castle
     ) {
         this.piece = piece;
+        this.capturedPiece = capturedPiece;
+        this.promotionPiece = promotionPiece;
         this.from = from;
         this.to = to;
-        this.promotion = promotion;
-        this.castle = castle;
-        this.capture = capture;
         this.enPassant = enPassant;
+        this.castle = castle;
     }
 
     static fromBytes(bytes: number): Move {
-        const flags = bytes >>> 24;
+        const piece = (bytes & PIECE_MASK) as PieceType;
 
-        let piece: PieceType;
-        let promotion: Promotion;
-        if ((flags & PROMOTION_MASK) > 0) {
-            piece = PieceType.Pawn;
-            promotion = bytes & 0xff;
-        } else {
-            piece = bytes & 0xff;
-            promotion = Promotion.None;
+        const isPromotion = (bytes & PROMOTION_MASK) !== 0;
+        const isCapture = (bytes & CAPTURE_MASK) !== 0;
+
+        let promotionPiece = undefined;
+        let capturePiece = undefined;
+        if (isPromotion) {
+            promotionPiece = (bytes & PROMO_PIECE_MASK) >>> PROMO_PIECE_SHIFT;
+        }
+        if (isCapture) {
+            capturePiece = (bytes & CAP_PIECE_MASK) >>> CAP_PIECE_SHIFT;
         }
 
-        const from_engine_index = (bytes & 0xff00) >>> 8;
+        const from_engine_index = (bytes & FROM_MASK) >>> FROM_SHIFT;
         const from = new Position(7 - (from_engine_index & 7), from_engine_index >>> 3);
 
-        const to_engine_index = (bytes & 0xff0000) >>> 16;
+        const to_engine_index = (bytes & TO_MASK) >>> TO_SHIFT;
         const to = new Position(7 - (to_engine_index & 7), to_engine_index >>> 3);
 
         let castle: Castle;
-        switch (flags & CASTLING_MASK) {
+        switch (bytes & CASTLING_MASK) {
             case 0:
                 castle = Castle.None;
                 break;
@@ -116,7 +132,7 @@ export class Move {
         }
 
         let enPassant: EnPassant;
-        switch (flags & EN_PASSANT_MASK) {
+        switch (bytes & EN_PASSANT_MASK) {
             case 0:
                 enPassant = EnPassant.None;
                 break;
@@ -134,24 +150,28 @@ export class Move {
                 throw new Error("Invalid en passant bits");
         }
 
-        const capture = (flags & CAPTURE_MASK) > 0;
-
-        return new Move(piece, from, to, promotion, castle, capture, enPassant);
+        return new Move(piece, capturePiece, promotionPiece, from, to, enPassant, castle);
     }
 
     toBytes(): number {
-        let piece: number;
-        let promotionBits: number;
-        if (this.promotion !== Promotion.None) {
-            piece = this.promotion;
-            promotionBits = PROMOTION;
-        } else {
-            piece = this.piece;
-            promotionBits = 0;
+        const piece = this.piece;
+
+        let capturedPiece = 0;
+        let captureFlag = 0;
+        if (this.capturedPiece !== undefined) {
+            capturedPiece = this.capturedPiece << CAP_PIECE_SHIFT;
+            captureFlag = CAPTURE;
         }
 
-        const from = this.from.rank * 8 + (7 - this.from.file);
-        const to = this.to.rank * 8 + (7 - this.to.file);
+        let promotionPiece = 0;
+        let promotionFlag = 0;
+        if (this.promotionPiece !== undefined) {
+            promotionPiece = this.promotionPiece << PROMO_PIECE_SHIFT;
+            promotionFlag = PROMOTION;
+        }
+
+        const from = (this.from.rank * 8 + (7 - this.from.file)) << FROM_SHIFT;
+        const to = (this.to.rank * 8 + (7 - this.to.file)) << TO_SHIFT;
 
         let castleBits: number;
         switch (this.castle) {
@@ -191,9 +211,17 @@ export class Move {
                 throw new Error("Invalid en passant bits");
         }
 
-        const captureBits = this.capture ? CAPTURE : 0;
-
-        return ((promotionBits | castleBits | captureBits | enPassantBits) << 24) | (to << 16) | (from << 8) | piece;
+        return (
+            piece |
+            capturedPiece |
+            promotionPiece |
+            from |
+            to |
+            enPassantBits |
+            castleBits |
+            captureFlag |
+            promotionFlag
+        );
     }
 
     // TODO: incomplete
@@ -208,7 +236,7 @@ export class Move {
         let toFile = String.fromCharCode(0x61 + this.to.file);
         let toRank = String.fromCharCode(0x31 + this.to.rank);
 
-        if (this.capture) {
+        if (this.capturedPiece !== undefined) {
             return piece + "x" + toFile + toRank;
         }
 

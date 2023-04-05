@@ -26,8 +26,9 @@ init().then(() => {
                     break;
 
                 case Signal.GetBestMove:
-                    const depth = msg.payload as number;
-                    payload = engine.get_best_move(depth);
+                    const depth = msg.payload.depth as number;
+                    const timeout = msg.payload.timeout as number;
+                    payload = engine.get_best_move(depth, timeout);
                     break;
 
                 case Signal.GetActiveColor:

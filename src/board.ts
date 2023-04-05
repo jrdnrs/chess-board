@@ -338,7 +338,7 @@ export class Board {
         const piece = this.getPiece(move.from);
         let sound = Sound.Move;
 
-        if (move.capture) {
+        if (move.capturedPiece !== undefined) {
             const captured = this.getPiece(move.to);
             if (captured.color === piece.color) {
                 throw new Error(`Attempted to capture piece of same color '${move.to}'`);
@@ -382,8 +382,8 @@ export class Board {
 
         this.removePiece(move.from);
 
-        if (move.promotion !== Promotion.None) {
-            const newPiece = new Piece(move.promotion + 0, piece.color);
+        if (move.promotionPiece !== undefined) {
+            const newPiece = new Piece(move.promotionPiece + 0, piece.color);
             this.addPiece(newPiece, move.to);
             sound = Sound.Promote;
         } else {

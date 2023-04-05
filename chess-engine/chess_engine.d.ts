@@ -2,9 +2,6 @@
 /* eslint-disable */
 /**
 */
-export function generation_test(): void;
-/**
-*/
 export class ChessEngine {
   free(): void;
 /**
@@ -31,9 +28,10 @@ export class ChessEngine {
   get_legal_moves(): Uint32Array;
 /**
 * @param {number} depth
+* @param {number} timeout
 * @returns {number | undefined}
 */
-  get_best_move(depth: number): number | undefined;
+  get_best_move(depth: number, timeout: number): number | undefined;
 /**
 * @param {number} legal_move
 */
@@ -51,9 +49,8 @@ export interface InitOutput {
   readonly chessengine_get_active_color: (a: number) => number;
   readonly chessengine_is_in_check: (a: number) => number;
   readonly chessengine_get_legal_moves: (a: number, b: number) => void;
-  readonly chessengine_get_best_move: (a: number, b: number, c: number) => void;
+  readonly chessengine_get_best_move: (a: number, b: number, c: number, d: number) => void;
   readonly chessengine_make_move: (a: number, b: number) => void;
-  readonly generation_test: () => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_malloc: (a: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number) => number;

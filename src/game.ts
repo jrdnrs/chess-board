@@ -88,16 +88,7 @@ export class Game {
     async handleEngineInteraction() {
         this.interacting = true;
 
-        const start = Date.now();
         const move = await this.getEngineMove();
-        const elapsed = Date.now() - start;
-
-        const delay = 500 + Math.random() * 1000;
-        if (elapsed < delay) {
-            await new Promise((resolve) => {
-                setTimeout(resolve, delay - elapsed);
-            });
-        }
 
         if (move === undefined) {
             this.interacting = false;
@@ -108,8 +99,7 @@ export class Game {
     }
 
     async getEngineMove(): Promise<Move | undefined> {
-        // TODO: soon will use time-based cutoff instead of specific depth...
-        return this.getBestMove(4);
+        return this.getBestMove(15, 5_000);
     }
 
     async handlePlayerInteraction(ev: MouseEvent) {
@@ -120,8 +110,8 @@ export class Game {
 
         // TODO: consider using this event listener to handle promotion selection too,
         //       would require caching the promotion type move until subsequent click
-        if (move.promotion !== Promotion.None) {
-            move.promotion = await this.getPlayerPromotionSelection(move.to);
+        if (move.promotionPiece !== undefined) {
+            move.promotionPiece = await this.getPlayerPromotionSelection(move.to);
         }
 
         await this.makeMove(move);
@@ -263,8 +253,8 @@ export class Game {
         return moves;
     }
 
-    async getBestMove(depth: number): Promise<Move | undefined> {
-        const moveBytes = (await this.contactEngine(Signal.GetBestMove, depth)) as number | undefined;
+    async getBestMove(depth: number, timeout: number): Promise<Move | undefined> {
+        const moveBytes = (await this.contactEngine(Signal.GetBestMove, { depth, timeout })) as number | undefined;
         if (moveBytes === undefined) {
             return undefined;
         }
@@ -305,7 +295,6 @@ export class Game {
 
             return;
         }
-
 
         if (this.players[this.board.activeColor] === Player.Engine) {
             await this.handleEngineInteraction();

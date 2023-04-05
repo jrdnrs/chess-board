@@ -25,21 +25,6 @@ btn1.addEventListener(
         const playerTwo = Number.parseInt((debugEl.querySelector("#sel2") as HTMLSelectElement).value);
         game.start(playerOne, playerTwo);
 
-        const btn2 = document.createElement("button");
-        btn2.innerHTML = "get legal moves";
-        debugEl.appendChild(btn2);
-        btn2.addEventListener("click", async (e) => {
-            console.log(await game.getLegalMoves());
-        });
-
-        const btn3 = document.createElement("button");
-        btn3.innerHTML = "get best move";
-        debugEl.appendChild(btn3);
-        btn3.addEventListener("click", async (e) => {
-            const moves = await game.getBestMove(5);
-            console.log(moves);
-        });
-
         const btn4 = document.createElement("button");
         btn4.innerHTML = "flip";
         debugEl.appendChild(btn4);

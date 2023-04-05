@@ -124,12 +124,6 @@ function getArrayU32FromWasm0(ptr, len) {
 }
 /**
 */
-export function generation_test() {
-    wasm.generation_test();
-}
-
-/**
-*/
 export class ChessEngine {
 
     static __wrap(ptr) {
@@ -211,12 +205,13 @@ export class ChessEngine {
     }
     /**
     * @param {number} depth
+    * @param {number} timeout
     * @returns {number | undefined}
     */
-    get_best_move(depth) {
+    get_best_move(depth, timeout) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.chessengine_get_best_move(retptr, this.ptr, depth);
+            wasm.chessengine_get_best_move(retptr, this.ptr, depth, timeout);
             var r0 = getInt32Memory0()[retptr / 4 + 0];
             var r1 = getInt32Memory0()[retptr / 4 + 1];
             return r0 === 0 ? undefined : r1 >>> 0;
@@ -270,10 +265,7 @@ function getImports() {
         const ret = getStringFromWasm0(arg0, arg1);
         return addHeapObject(ret);
     };
-    imports.wbg.__wbg_log_2e52a642cf21d3b0 = function(arg0, arg1) {
-        console.log(getStringFromWasm0(arg0, arg1));
-    };
-    imports.wbg.__wbg_now_e61cf5a17677d0f0 = function() {
+    imports.wbg.__wbg_now_931686b195a14f9d = function() {
         const ret = Date.now();
         return ret;
     };

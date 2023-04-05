@@ -71,7 +71,7 @@ export class Overlay {
     highlightLegalMoves(start: Position, moves: Move[]) {
         this.squares[start.index].classList.add("start");
         for (const move of moves) {
-            if (move.capture || move.enPassant === EnPassant.Capture) {
+            if (move.capturedPiece !== undefined || move.enPassant === EnPassant.Capture) {
                 this.squares[move.to.index].classList.add("capture");
             } else {
                 this.squares[move.to.index].classList.add("dest");
